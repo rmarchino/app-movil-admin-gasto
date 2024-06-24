@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Text,
   StyleSheet,
@@ -16,6 +16,8 @@ import ControlPresupuesto from "./components/presupuesto/ControlPresupuesto";
 import FormularioGasto from "./components/gasto/FormularioGasto";
 import { generarID } from "./helpers";
 import ListadoGastos from "./components/gasto/ListadoGastos";
+import Filtro from "./components/gasto/Filtro";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function App() {
   const [isValidPresupuesto, setIsValidPresupuesto] = useState(false);
@@ -23,6 +25,14 @@ export default function App() {
   const [gastos, setGastos] = useState([]);
   const [modal, setModal] = useState(false);
   const [gasto, setGasto] = useState({});
+  const [filtro, setFiltro] = useState("");
+  const [gastosFiltrados, setGastosFiltrados] = useState([]);
+
+  useEffect(() => {
+    const almacenarAS = async () => {
+      await AsyncStorage.setItem('prueba_as', nombre)
+    }
+  },[])
 
   const handleNuevoPresupuesto = (presupuesto) => {
     if (Number(presupuesto) > 0) {
@@ -35,18 +45,46 @@ export default function App() {
   };
 
   const handleGasto = (gasto) => {
-    if (Object.values(gasto).includes("")) {
+    if ([gasto.nombre, gasto.categoria, gasto.cantidad].includes("")) {
       Alert.alert("Error", "Todos los campos son obligatorios", [
         { text: "OK" },
       ]);
       return;
     }
-    //Añadir el nuevo gasto al state
-    gasto.id = generarID();
-    gasto.fecha = Date.now();
 
-    setGastos([...gastos, gasto]);
+    if (gasto.id) {
+      const gastosActualizados = gastos.map((gastoState) =>
+        gastoState.id === gasto.id ? gasto : gastoState
+      );
+      setGastos(gastosActualizados);
+    } else {
+      //Añadir el nuevo gasto al state
+      gasto.id = generarID();
+      gasto.fecha = Date.now();
+      setGastos([...gastos, gasto]);
+    }
     setModal(!modal);
+  };
+
+  const eliminarGasto = (id) => {
+    Alert.alert(
+      "¿Desea eliminar este gasto?",
+      "Un Gasto eliminado no se puede recuperar",
+      [
+        { text: "No", style: "cancel" },
+        {
+          text: "Si Eliminar",
+          onPress: () => {
+            const gastosActualizados = gastos.filter(
+              (gastoState) => gastoState.id !== id
+            );
+            setGastos(gastosActualizados);
+            setModal(!modal);
+            setGasto({});
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -66,11 +104,21 @@ export default function App() {
         </View>
 
         {isValidPresupuesto && (
-          <ListadoGastos
-            gastos={gastos}
-            setModal={setModal}
-            setGasto={setGasto}
-          />
+          <>
+            <Filtro
+              filtro={filtro}
+              setFiltro={setFiltro}
+              gastos={gastos}
+              setGastosFiltrados={setGastosFiltrados}
+            />
+            <ListadoGastos
+              gastos={gastos}
+              setModal={setModal}
+              setGasto={setGasto}
+              filtro={filtro}
+              gastosFiltrados={gastosFiltrados}
+            />
+          </>
         )}
       </ScrollView>
 
@@ -85,13 +133,15 @@ export default function App() {
           <FormularioGasto
             setModal={setModal}
             handleGasto={handleGasto}
+            gasto={gasto}
             setGasto={setGasto}
+            eliminarGasto={eliminarGasto}
           />
         </Modal>
       )}
 
       {isValidPresupuesto && (
-        <Pressable onPress={() => setModal(!modal)}>
+        <Pressable style={styles.presable} onPress={() => setModal(!modal)}>
           <Image
             style={styles.imagen}
             source={require("./images/nuevo-gasto.png")}
@@ -111,11 +161,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#f5f5f5",
     flex: 1,
   },
-  imagen: {
+  presable: {
     width: 60,
     height: 60,
     position: "absolute",
     bottom: 40,
     right: 30,
+  },
+  imagen: {
+    width: 60,
+    height: 60,
   },
 });
